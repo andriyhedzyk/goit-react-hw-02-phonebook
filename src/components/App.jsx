@@ -19,7 +19,7 @@ export class App extends Component {
     addContact = ({ name, number }) => {
     const normalizedName = name.toLowerCase();
 
-    let isAdded = false;
+    let isAdded = false;                               //перевірка на наявність імені в книзі
     this.state.contacts.forEach(el => {
       if (el.name.toLowerCase() === normalizedName) {
         alert(`${name} is already in contacts`);
