@@ -1,105 +1,89 @@
 import React, { Component } from 'react';
-import shortid from 'shortid';
-import s from './App.module.css';
-import ContactForm from './ContactForm/ContactForm';
-import ContactList from './ContactList/ContactList';
-import Filter from './Filter/Filter';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import Searchbar from './Searchbar/Searchbar';
+import ImageGallery from './ImageGallery/ImageGallery'
+import Button from './Button/Button'
+import Loader from './Loader/Loader';
 
-export class App extends Component {
+export default class App extends Component {
   state = {
-    contacts: [
-      { id: 'id-1', name: 'Rosie Simpson', number: '459-12-56' },
-      { id: 'id-2', name: 'Hermione Kline', number: '443-89-12' },
-      { id: 'id-3', name: 'Eden Clements', number: '645-17-79' },
-      { id: 'id-4', name: 'Annie Copeland', number: '227-91-26' },
-    ],
-    filter: '',
-  };
-  
-    addContact = ({ name, number }) => {
-    const normalizedName = name.toLowerCase();
-
-    let isAdded = false;                               //перевірка на наявність імені в книзі
-    this.state.contacts.forEach(el => {
-      if (el.name.toLowerCase() === normalizedName) {
-        alert(`${name} is already in contacts`);
-        isAdded = true;
-      }
-    });
-
-    if (isAdded) {
-      return;
-    }
-    const contact = {
-      id: shortid.generate(),
-      name: name,
-      number: number,
-    };
-    this.setState(prevState => ({
-      contacts: [...prevState.contacts, contact],
-    }));
+    URL: 'https://pixabay.com/api/',
+    API_KEY: '29139026-1b7ca045c01626552c53cc26d',
+    pictures: [],
+    error: '',
+    status: 'idle',
+    page: 1,
+    query: '',
+    totalHits: null,
   };
 
-  changeFilter = e => {
-    this.setState({ filter: e.currentTarget.value });
+  fetchImg = () => {
+    return fetch(
+      `${this.state.URL}?q=${this.state.query}&page=${this.state.page}&key=${this.state.API_KEY}&image_type=photo&orientation=horizontal&per_page=12`
+    )
+      .then(res => {
+        if (res.ok) {
+          return res.json();
+        }
+        return Promise.reject(new Error('Failed to find any images'));
+      })
+      .then(pictures => {
+        if (!pictures.total) {
+          toast.error('Did find anything, mate');
+        }
+        const selectedProperties = pictures.hits.map(
+          ({ id, largeImageURL, webformatURL }) => {
+            return { id, largeImageURL, webformatURL };
+          }
+        );
+        this.setState(prevState => {
+          return {
+            pictures: [...prevState.pictures, ...selectedProperties],
+            status: 'resolved',
+            totalHits: pictures.total,
+          };
+        });
+      })
+      .catch(error => this.setState({ error, status: 'rejected' }));
   };
-
-  getVisibleContacts = () => {
-    const { filter, contacts } = this.state;
-    const normalizedFilter = filter.toLowerCase();
-
-    return contacts.filter(contact =>
-      contact.name.toLowerCase().includes(normalizedFilter)
-    );
-  };
-
-  deleteContact = todoId => {
-    this.setState(prevState => ({
-      contacts: prevState.contacts.filter(contact => contact.id !== todoId),
-    }));
-  };
-
-
-  componentDidMount() {
-    const contacts = localStorage.getItem('contacts')
-    const parsedContacts = JSON.parse(contacts)
-    if (parsedContacts) {
-    this.setState({ contacts: parsedContacts })
-    }
-  }
 
   componentDidUpdate(prevProps, prevState) {
-        if (this.state.contacts !== prevState.state) { // якщо теперішній масив не такий самий як попередній
-      localStorage.setItem('contacts', JSON.stringify(this.state.contacts))
-    } 
+    if (this.state.query !== prevState.query) {
+      this.setState({ status: 'pending', pictures: [], page: 1 });
+      this.fetchImg();
+    }
+    if (
+      this.state.query === prevState.query &&
+      this.state.page !== prevState.page
+    ) {
+      this.setState({ status: 'pending' });
+      this.fetchImg();
+    }
   }
-  
+
+  processSubmit = query => {
+    this.setState({ query });
+  };
+
+  handleLoadMore = () => {
+    this.setState(prevState => {
+      return { page: prevState.page + 1 };
+    });
+  };
+
   render() {
-    const { contacts, filter } = this.state;
-    const visibleContacts = this.getVisibleContacts();
-
+    const { pictures, status, totalHits } = this.state;
     return (
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          flexDirection: 'column',
-          fontSize: 18,
-        }}
-      >
-        <h1>Phonebook</h1>
-        <ContactForm onSubmit={this.addContact} />
-
-        <h2 className={s.titleContacts}>Contacts</h2>
-        <div className={s.allContacts}>All contacts: {contacts.length}</div>
-        <Filter value={filter} onChange={this.changeFilter} />
-        <ContactList
-          contacts={visibleContacts}
-          onDeleteContact={this.deleteContact}
-        />
-      </div>
-    )
+      <>
+        <Searchbar onSubmit={this.processSubmit} />
+        {<ImageGallery images={pictures} />}
+        {totalHits > pictures.length && (
+          <Button onClick={this.handleLoadMore} />
+        )}
+        {status === 'pending' && <Loader />}
+        <ToastContainer autoClose={2000} />
+      </>
+    );
   }
 }
-export default App;
